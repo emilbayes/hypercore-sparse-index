@@ -109,7 +109,10 @@ test('catchup after being offline', function (assert) {
     feed.append('4')
     feed.close(function () {
       // "Continue" feed, but different instance
-      var clone = core.createFeed(feed.key)
+      var clone = core.createFeed({
+        key: feed.key,
+        secretKey: feed.secretKey
+      })
       clone.append('1')
       clone.append(['3', '5'])
 
