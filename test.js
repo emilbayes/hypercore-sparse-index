@@ -2,140 +2,143 @@
 
 var memdb = require('memdb')
 var hypercore = require('hypercore')
-var sparseIndex = require('.')
+var index = require('.')
 var test = require('tape')
 
 test('local index', function (assert) {
-  var blocks = ['0', '1', '2', '3', '4', '5', '6', '7']
-  var expected = blocks.slice()
+  var feed = create().createFeed()
 
-  function assertMessage (block) {
-    var idx
-    assert.ok(idx = expected.indexOf(block))
-    expected.splice(idx, 1)
+  feed.append('0')
+  feed.append('1')
+  feed.flush(function () {
+    index({
+      feed: feed,
+      db: memdb()
+    }, entryAssert, assert.error)
 
-    if (expected.length === 0) assert.end()
-  }
+    feed.append('2')
+    feed.append('3')
+    feed.append(['4', '5'])
+  })
 
-  var feed1 = create().createFeed()
-
-  feed1.append(blocks.pop())
-  feed1.append(blocks.pop())
-
-  sparseIndex({
-    db: memdb(),
-    feed: feed1
-  }, function (entry, next) {
-    assertMessage(entry)
+  var expected = new Set(['0', '1', '2', '3', '4', '5'])
+  function entryAssert (entry, next) {
+    assert.ok(expected.delete(entry.toString()))
+    if (expected.size === 0) return assert.end()
     next()
-  }, function (err) {
-    assert.error(err)
-  })
-
-  feed1.append(blocks.splice(0, 2))
-
-  feed1.flush(function () {
-    feed1.append(blocks.pop())
-    feed1.append(blocks.pop())
-    feed1.append(blocks.splice(0, 2))
-  })
+  }
 })
 
 test('live replicated index', function (assert) {
-  var blocks = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
-  var expected = blocks.slice()
+  var feed = create().createFeed()
+  var clone = create().createFeed(feed.key)
 
-  function assertMessage (block) {
-    var idx
-    assert.ok(-1 !== (idx = expected.indexOf(block.toString())))
-    expected.splice(idx, 1)
-    if (expected.length === 0) assert.end()
-  }
+  feed.append('0')
+  feed.append('1')
+  feed.flush(function () {
+    replicate(feed, clone)
 
-  var feed1 = create().createFeed()
+    index({
+      feed: clone,
+      db: memdb()
+    }, entryAssert, assert.error)
 
-  feed1.append(blocks.pop())
-  feed1.append(blocks.pop())
-
-  feed1.append(blocks.splice(0, 2))
-
-  feed1.flush(function () {
-    var feed2 = create().createFeed(feed1.key)
-
-    feed1.append(blocks.pop())
-    replicate(feed1, feed2)
-    feed1.append(blocks.pop())
-
-    sparseIndex({
-      db: memdb(),
-      feed: feed2
-    }, function (entry, next) {
-      assertMessage(entry)
-      next()
-    }, function (err) {
-      assert.error(err)
-    })
-
-    feed1.flush(function () {
-      feed1.append(blocks.pop())
-      feed1.append(blocks.pop())
-      feed1.append(blocks.splice(0, 2))
-    })
+    feed.append('2')
+    feed.append('3')
+    feed.append(['4', '5'])
   })
+
+  var expected = new Set(['0', '1', '2', '3', '4', '5'])
+  function entryAssert (entry, next) {
+    assert.ok(expected.delete(entry.toString()))
+    if (expected.size === 0) return assert.end()
+    next()
+  }
 })
 
-test('sparse index', function (assert) {
-  var blocks = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
-  var expected = ['0', '4', '6', '8', '9']
+test('live replicated, sparse index', function (assert) {
+  var feed = create().createFeed()
+  var clone = create().createFeed(feed.key, {sparse: true})
 
-  function assertMessage (block) {
-    var idx
-    assert.ok(-1 !== (idx = expected.indexOf(block.toString())))
-    expected.splice(idx, 1)
-    if (expected.length === 0) assert.end()
-  }
+  feed.append('0')
+  feed.append('1')
+  feed.flush(function () {
+    replicate(feed, clone)
 
-  var feed1 = create().createFeed()
+    index({
+      feed: clone,
+      db: memdb()
+    }, entryAssert, assert.error)
 
-  feed1.append(blocks.splice(0, 4))
+    clone.get(0, function (_) {
+      feed.append('2')
+      feed.append('3')
+      feed.append(['4', '5'])
+      feed.flush(function () {
+        clone.get(4, function (_) {
+          clone.get(2, function (_) {
 
-  feed1.flush(function () {
-    var feed2 = create().createFeed(feed1.key, {sparse: true})
-
-    replicate(feed1, feed2)
-    feed1.append(blocks.splice(0, 2))
-
-    feed2.get(0, noop)
-    feed2.get(4, noop)
-
-    sparseIndex({
-      db: memdb(),
-      feed: feed2
-    }, function (entry, next) {
-      assertMessage(entry)
-      next()
-    }, function (err) {
-      assert.error(err)
-    })
-
-    feed2.get(6, noop)
-
-    feed1.flush(function () {
-      feed1.append(blocks.splice(0, 4))
-
-      feed2.get(8, noop)
-      feed2.get(9, noop)
+          })
+        })
+      })
     })
   })
+
+  var expected = new Set(['0', '2', '4'])
+  function entryAssert (entry, next) {
+    assert.ok(expected.delete(entry.toString()))
+    if (expected.size === 0) return assert.end()
+    next()
+  }
 })
 
-function noop () {}
+test('catchup after being offline', function (assert) {
+  var core = create()
+  var feed = core.createFeed()
+
+  var db = memdb()
+
+  feed.append('0')
+  feed.append('2')
+  feed.flush(function () {
+    index({
+      feed: feed,
+      db: db
+    }, entryAssert1, assert.error)
+
+    feed.append('4')
+    feed.close(function () {
+      // "Continue" feed, but different instance
+      var clone = core.createFeed(feed.key)
+      clone.append('1')
+      clone.append(['3', '5'])
+
+      index({
+        feed: clone,
+        db: db
+      }, entryAssert2, assert.error)
+    })
+  })
+
+  var expected1 = new Set(['0', '2', '4'])
+  function entryAssert1 (entry, next) {
+    assert.ok(expected1.delete(entry.toString()))
+    next()
+  }
+
+  var expected2 = new Set(['1', '3', '5'])
+  function entryAssert2 (entry, next) {
+    assert.ok(expected2.delete(entry.toString()))
+    if (expected2.size === 0) return assert.end()
+    next()
+  }
+})
 
 function create (opts) {
   return hypercore(memdb({keyEncoding: 'json'}), opts)
 }
 
-function replicate (a, b) {
-  var stream = a.replicate()
-  stream.pipe(b.replicate()).pipe(stream)
+function replicate (a, b, optsA, optsB) {
+  var stream = a.replicate(optsA)
+  stream.pipe(b.replicate(optsB)).pipe(stream)
 }
