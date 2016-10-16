@@ -24,15 +24,18 @@ function HypercoreSparseIndex (opts, onentry, ondone) {
 
   var queue = write.obj(function (entry, _, next) {
     onentry(entry.data, function (err) {
-      if (err) return ondone(err)
+      if (err) return next(err)
 
       sieve.set(entry.block, true)
       persist(entry.block, next)
     })
   })
 
+  queue.on('error', ondone)
+  queue.on('finish', ondone)
+
   open(function (err) {
-    if (err) return ondone(err)
+    if (err) return queue.destroy(err)
 
     catchup()
 
