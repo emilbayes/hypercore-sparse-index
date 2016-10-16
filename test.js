@@ -70,7 +70,7 @@ test('local index', function (assert) {
 
   var expected = new Set(['0', '1', '2', '3', '4', '5'])
   function assertEntry (entry, next) {
-    assert.ok(expected.delete(entry.toString()))
+    assert.ok(expected.delete(entry.toString()), 'saw ' + entry.toString())
     if (expected.size === 0) return assert.end()
     next()
   }
@@ -97,7 +97,7 @@ test('live replicated index', function (assert) {
 
   var expected = new Set(['0', '1', '2', '3', '4', '5'])
   function assertEntry (entry, next) {
-    assert.ok(expected.delete(entry.toString()))
+    assert.ok(expected.delete(entry.toString()), 'saw ' + entry.toString())
     if (expected.size === 0) return assert.end()
     next()
   }
@@ -133,7 +133,7 @@ test('live replicated, sparse index', function (assert) {
 
   var expected = new Set(['0', '2', '4'])
   function assertEntry (entry, next) {
-    assert.ok(expected.delete(entry.toString()))
+    assert.ok(expected.delete(entry.toString()), 'saw ' + entry.toString())
     if (expected.size === 0) return assert.end()
     next()
   }
@@ -154,12 +154,12 @@ test('should call ondone when closed', function (assert) {
   var expected = new Set(['0', '1', '2', '3', '4'])
 
   function assertEntry (entry, next) {
-    assert.ok(expected.delete(entry.toString()), entry.toString())
+    assert.ok(expected.delete(entry.toString()), 'saw ' + entry.toString())
     next()
   }
 
   function assertDone (err) {
-    assert.equal(expected.size, 0)
+    assert.equal(expected.size, 0, 'should have indexed all entries')
     assert.error(err, 'should not error')
     assert.end()
   }
@@ -227,15 +227,15 @@ test('catchup after being offline', function (assert) {
 
   var expected1 = new Set(['0', '2', '4'])
   function assertEntry1 (entry, next) {
-    assert.ok(expected1.delete(entry.toString()))
+    assert.ok(expected1.delete(entry.toString()), 'saw ' + entry.toString())
     next()
   }
 
   var expected2 = new Set(['1', '3', '5'])
   function assertEntry2 (entry, next) {
-    assert.ok(expected2.delete(entry.toString()))
+    assert.ok(expected2.delete(entry.toString()), 'saw ' + entry.toString())
     if (expected2.size === 0) {
-      assert.equal(expected1.size, 0)
+      assert.equal(expected1.size, 0, 'should have index all entries')
       return assert.end()
     }
     next()
