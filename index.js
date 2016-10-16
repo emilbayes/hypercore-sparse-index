@@ -59,7 +59,8 @@ function HypercoreSparseIndex (opts, onentry, ondone) {
     // Read all buffers for bitfield and head offset
     db.createReadStream({
       gt: BITFIELD_BUFFERS,
-      lt: BITFIELD_BUFFERS + '\xff'
+      lt: BITFIELD_BUFFERS + '\xff',
+      valueEncoding: 'binary'
     })
     .on('data', function (data) {
       sieve.setBuffer(data.key.slice(BITFIELD_BUFFERS.length) * 8, data.value)
@@ -71,7 +72,7 @@ function HypercoreSparseIndex (opts, onentry, ondone) {
       db.get(HEAD_OFFSET, function (err, offset) {
         if (err && !err.notFound) return cb(err)
         if (err && err.notFound) head = 0
-        else head = offset
+        else head = Number(offset)
 
         cb()
       })
