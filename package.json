@@ -1,7 +1,7 @@
 {
   "name": "hypercore-sparse-index",
   "version": "0.0.0",
-  "description": "Index blocks as they're downloaded",
+  "description": "Index blocks as they're available",
   "main": "index.js",
   "dependencies": {
     "bitfield-rle": "^1.1.2",

@@ -1,10 +1,6 @@
 # WIP `hypercore-sparse-index`
 
-> Index blocks as they're downloaded
-
-Note: This module is strongly limited in that it only indexes blocks on startup
-and as they're downloaded. Meaning it will not index new blocks as they're
-appended
+> Index blocks as they're available
 
 ## Usage
 
@@ -28,6 +24,7 @@ sparseIndex({
   console.error(err)
 })
 
+// Indirectly download blocks from source feed
 feed.get(0, function () {})
 feed.get(1, function () {})
 feed.get(2, function () {})
@@ -36,7 +33,15 @@ feed.get(2, function () {})
 
 ## API
 
-#### `HypercoreSparseIndex(opts, onentry, [onerror])`
+#### `HypercoreSparseIndex(opts, onentry, [ondone])`
+
+`onentry(data, callback)` is called for each entry as it is available, either
+because it was appended locally or fetched remotely. On entry will only be
+called once for each block. `ondone(error)` is called when the index encounters
+an error, which can be from `onentry` or other sources, or when the feed is
+closed.
+
+`opts` has the following signature, all properties being required:
 
 ```js
 {
