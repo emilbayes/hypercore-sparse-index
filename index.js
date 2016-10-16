@@ -3,7 +3,6 @@
 var assert = require('assert')
 var write = require('flush-write-stream')
 var bitfield = require('sparse-bitfield')
-var bf = require('hypercore/lib/bitfield')
 
 var BITFIELD_BUFFERS = '!_bitfield_buffers!'
 var HEAD_OFFSET = '!_head_offset!'
@@ -38,17 +37,15 @@ function HypercoreSparseIndex (opts, onentry, ondone) {
     if (err) return queue.destroy(err)
 
     catchup()
-
     feed.on('download', function (block, data) {
       enqueue(block)(null, data)
     })
 
     feed.on('update', function () {
       var oldHead = head
-      var newHead = feed.blocks
-      head = newHead
+      var head = feed.blocks
 
-      for (var i = oldHead; i < newHead; i++) {
+      for (var i = oldHead; i < head; i++) {
         if (feed.has(i)) feed.get(i, enqueue(i))
       }
     })
@@ -99,25 +96,6 @@ function HypercoreSparseIndex (opts, onentry, ondone) {
     for (var i = 0; i < feed.blocks; i++) {
       if (feed.has(i) && sieve.get(i) === false) feed.get(i, enqueue(i))
     }
-
-    // var bitfieldBuffer
-    // for (var byte = 0; byte < feedHas.length / 8; byte++) {
-    //   // Every time we encounter the border of a sparse-bitfield bucket
-    //   if (byte % bitfield.BITFIELD_LENGTH === 0) {
-    //     bitfieldBuffer = bitfield.getBuffer(byte / 8)
-    //     if (bitfieldBuffer == null) { // If there was no bucket
-    //       // Advance to the next bucket
-    //       byte += bitfield.BITFIELD_LENGTH
-    //       continue
-    //     }
-    //   }
-    //
-    //   if (feedHas[byte] !== bitfieldBuffer[byte % 1024]) {
-    //     for (var bit = byte * 8, end = bit + 8; bit < end; bit++) {
-    //       if (sieve.get(bit) === false) feed.get(bit, enqueue(bit))
-    //     }
-    //   }
-    // }
   }
 
   function enqueue (block) {

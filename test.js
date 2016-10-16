@@ -92,6 +92,58 @@ test('live replicated, sparse index', function (assert) {
   }
 })
 
+test('should call ondone when closed', function (assert) {
+  var feed = create().createFeed()
+
+  feed.append('0')
+  feed.append('1')
+  index({
+    feed: feed,
+    db: memdb()
+  }, assertEntry, assertDone)
+
+  feed.append(['2', '3', '4'])
+
+  var expected = new Set(['0', '1', '2', '3', '4'])
+
+  function assertEntry (entry, next) {
+    assert.ok(expected.delete(entry.toString()), entry.toString())
+    next()
+  }
+
+  function assertDone (err) {
+    assert.error(err, 'should not error')
+    assert.end()
+  }
+
+  feed.close()
+})
+
+test('should call ondone when error', function (assert) {
+  var feed = create().createFeed()
+
+  feed.append('0')
+  feed.append('1')
+
+  index({
+    feed: feed,
+    db: memdb()
+  }, assertEntry, assertDone)
+
+  feed.append(['2', '3', '4'])
+
+  var expected = new Error('dummy error')
+
+  function assertEntry (entry, next) {
+    next(expected)
+  }
+
+  function assertDone (err) {
+    assert.equal(err, expected, 'should be the same error')
+    assert.end()
+  }
+})
+
 test('catchup after being offline', function (assert) {
   var core = create()
   var feed = core.createFeed()
