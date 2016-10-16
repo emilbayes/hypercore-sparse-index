@@ -27,7 +27,7 @@ module.exports = function (opts, onentry, ondone) {
   // head tracks which blocks have been queued as they're appended. See on('update')
   var head
 
-  var queue = write.obj({highwaterMark: 0}, function (node, _, next) {
+  var queue = write.obj({highWaterMark: 0}, function (node, _, next) {
     assert.ok(sieve.get(node.block) === false)
 
     onentry(node.data, function (err) {
@@ -43,7 +43,7 @@ module.exports = function (opts, onentry, ondone) {
   })
 
   queue.on('error', ondone)
-  queue.on('close', ondone)
+  queue.on('finish', ondone)
 
   // Might close before we have gotten our previous state
   feed.on('close', function () {
@@ -85,7 +85,7 @@ module.exports = function (opts, onentry, ondone) {
       valueEncoding: 'binary'
     })
     .on('data', function (data) {
-      sieve.setBuffer(data.key.slice(BITFIELD_BUFFERS.length) * 8, data.value)
+      sieve.setBuffer(data.key.slice(BITFIELD_BUFFERS.length) * bitfield.BITFIELD_LENGTH, data.value)
     })
     .on('error', function (err) {
       return cb(err)
@@ -103,7 +103,7 @@ module.exports = function (opts, onentry, ondone) {
 
   function persist (index, cb) {
     // Find the buffer and write it and head offset
-    var bufIdx = Math.floor(index / 8)
+    var bufIdx = Math.floor(index / bitfield.BITFIELD_LENGTH)
     var buf = sieve.getBuffer(index)
 
     db.put(BITFIELD_BUFFERS + bufIdx, buf, function (err) {
