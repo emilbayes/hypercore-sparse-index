@@ -157,10 +157,9 @@ test('catchup after being offline', function (assert) {
     index({
       feed: feed,
       db: db
-    }, assertEntry1, assert.error)
+    }, assertEntry1, function (err) {
+      assert.error(err)
 
-    feed.append('4')
-    feed.close(function () {
       // "Continue" feed, but different instance
       var clone = core.createFeed({
         key: feed.key,
@@ -174,6 +173,9 @@ test('catchup after being offline', function (assert) {
         db: db
       }, assertEntry2, assert.error)
     })
+
+    feed.append('4')
+    feed.close()
   })
 
   var expected1 = new Set(['0', '2', '4'])
