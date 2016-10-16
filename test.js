@@ -187,7 +187,10 @@ test('catchup after being offline', function (assert) {
   var expected2 = new Set(['1', '3', '5'])
   function assertEntry2 (entry, next) {
     assert.ok(expected2.delete(entry.toString()))
-    if (expected2.size === 0) return assert.end()
+    if (expected2.size === 0) {
+      assert.equal(expected1.size, 0)
+      return assert.end()
+    }
     next()
   }
 })
