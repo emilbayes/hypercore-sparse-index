@@ -112,6 +112,7 @@ test('should call ondone when closed', function (assert) {
   }
 
   function assertDone (err) {
+    assert.equal(expected.size, 0)
     assert.error(err, 'should not error')
     assert.end()
   }
