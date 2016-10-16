@@ -4,54 +4,76 @@ var assert = require('assert')
 var write = require('flush-write-stream')
 var bitfield = require('sparse-bitfield')
 
+// leveldb prefixes
 var BITFIELD_BUFFERS = '!_bitfield_buffers!'
 var HEAD_OFFSET = '!_head_offset!'
 
-module.exports = HypercoreSparseIndex
-function HypercoreSparseIndex (opts, onentry, ondone) {
+function noop () {}
+
+module.exports = function (opts, onentry, ondone) {
+  assert.ok(opts, 'opts must be given')
   assert.ok(opts.db, 'opts.db must be given')
   assert.ok(opts.feed, 'opts.feed must be given')
-  assert.equal(typeof onentry, 'function', 'onentry must be a function')
+  assert.ok(typeof onentry === 'function', 'onentry must be a function')
+  assert.ok(ondone == null ? true : typeof ondone === 'function', 'ondone must be a function')
 
   var feed = opts.feed
   var db = opts.db
 
+  ondone = ondone || noop
+
   // The sieve will serve to record which nodes have been indexed
   var sieve = bitfield()
-  // head tracks which blocks have been as they're appended. See on('update')
+  // head tracks which blocks have been queued as they're appended. See on('update')
   var head
 
-  var queue = write.obj(function (entry, _, next) {
-    onentry(entry.data, function (err) {
+  var queue = write.obj({highwaterMark: 0}, function (node, _, next) {
+    assert.ok(sieve.get(node.block) === false)
+
+    onentry(node.data, function (err) {
       if (err) return next(err)
 
-      sieve.set(entry.block, true)
-      persist(entry.block, next)
+      sieve.set(node.block, true)
+      persist(node.block, function (err) {
+        if (err) return next(err)
+
+        next()
+      })
     })
   })
 
   queue.on('error', ondone)
-  queue.on('finish', ondone)
+  queue.on('close', ondone)
 
+  // Might close before we have gotten our previous state
+  feed.on('close', function () {
+    queue.end()
+  })
+
+  // First find previous state
   open(function (err) {
     if (err) return queue.destroy(err)
+    // Wait for blocks waiting to be appended
+    feed.flush(function (err) {
+      if (err) return queue.destroy(err)
 
-    catchup()
-    feed.on('download', function (block, data) {
-      enqueue(block)(null, data)
-    })
+      // Catch up sync
+      catchup()
 
-    feed.on('update', function () {
-      var oldHead = head
-      var head = feed.blocks
+      // Then listen for new changes
+      feed.on('download', function (block, data) {
+        // We can directly enqueue here
+        enqueue(block)(null, data)
+      })
 
-      for (var i = oldHead; i < head; i++) {
-        if (feed.has(i)) feed.get(i, enqueue(i))
-      }
-    })
+      feed.on('update', function () {
+        var oldHead = head
+        var head = feed.blocks
 
-    feed.on('close', function () {
-      queue.end()
+        for (var i = oldHead; i < head; i++) {
+          if (feed.has(i)) feed.get(i, enqueue(i))
+        }
+      })
     })
   })
 
