@@ -14,7 +14,7 @@ test('local index', function (assert) {
     index({
       feed: feed,
       db: memdb()
-    }, entryAssert, assert.error)
+    }, assertEntry, assert.error)
 
     feed.append('2')
     feed.append('3')
@@ -22,7 +22,7 @@ test('local index', function (assert) {
   })
 
   var expected = new Set(['0', '1', '2', '3', '4', '5'])
-  function entryAssert (entry, next) {
+  function assertEntry (entry, next) {
     assert.ok(expected.delete(entry.toString()))
     if (expected.size === 0) return assert.end()
     next()
@@ -41,7 +41,7 @@ test('live replicated index', function (assert) {
     index({
       feed: clone,
       db: memdb()
-    }, entryAssert, assert.error)
+    }, assertEntry, assert.error)
 
     feed.append('2')
     feed.append('3')
@@ -49,7 +49,7 @@ test('live replicated index', function (assert) {
   })
 
   var expected = new Set(['0', '1', '2', '3', '4', '5'])
-  function entryAssert (entry, next) {
+  function assertEntry (entry, next) {
     assert.ok(expected.delete(entry.toString()))
     if (expected.size === 0) return assert.end()
     next()
@@ -68,7 +68,7 @@ test('live replicated, sparse index', function (assert) {
     index({
       feed: clone,
       db: memdb()
-    }, entryAssert, assert.error)
+    }, assertEntry, assert.error)
 
     clone.get(0, function (_) {
       feed.append('2')
@@ -85,7 +85,7 @@ test('live replicated, sparse index', function (assert) {
   })
 
   var expected = new Set(['0', '2', '4'])
-  function entryAssert (entry, next) {
+  function assertEntry (entry, next) {
     assert.ok(expected.delete(entry.toString()))
     if (expected.size === 0) return assert.end()
     next()
@@ -156,7 +156,7 @@ test('catchup after being offline', function (assert) {
     index({
       feed: feed,
       db: db
-    }, entryAssert1, assert.error)
+    }, assertEntry1, assert.error)
 
     feed.append('4')
     feed.close(function () {
@@ -171,18 +171,18 @@ test('catchup after being offline', function (assert) {
       index({
         feed: clone,
         db: db
-      }, entryAssert2, assert.error)
+      }, assertEntry2, assert.error)
     })
   })
 
   var expected1 = new Set(['0', '2', '4'])
-  function entryAssert1 (entry, next) {
+  function assertEntry1 (entry, next) {
     assert.ok(expected1.delete(entry.toString()))
     next()
   }
 
   var expected2 = new Set(['1', '3', '5'])
-  function entryAssert2 (entry, next) {
+  function assertEntry2 (entry, next) {
     assert.ok(expected2.delete(entry.toString()))
     if (expected2.size === 0) return assert.end()
     next()
