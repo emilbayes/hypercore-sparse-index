@@ -5,6 +5,53 @@ var hypercore = require('hypercore')
 var index = require('.')
 var test = require('tape')
 
+test('constructor', function (assert) {
+  index({
+    db: memdb(),
+    feed: create().createFeed()
+  }, function () {})
+
+  index({
+    db: memdb(),
+    feed: create().createFeed()
+  }, function () {}, function () {})
+
+  assert.end()
+})
+
+test('should throw with wrong constructor options', function (assert) {
+  // An exercise in combinatorics
+  assert.throws(function () {
+    index()
+  }, 'no arguments')
+
+  assert.throws(function () {
+    index({})
+  }, 'no opts.db or opts.feed')
+
+  assert.throws(function () {
+    index({db: memdb()})
+  }, 'no opts.feed')
+
+  assert.throws(function () {
+    index({feed: create().createFeed()})
+  }, 'no opts.db')
+
+  assert.throws(function () {
+    index({feed: create().createFeed(), db: memdb()})
+  }, 'no onentry')
+
+  assert.throws(function () {
+    index({feed: create().createFeed(), db: memdb()}, 123)
+  }, 'onentry not function')
+
+  assert.throws(function () {
+    index({feed: create().createFeed(), db: memdb()}, function () {}, 123)
+  }, 'ondone set, but not function')
+
+  assert.end()
+})
+
 test('local index', function (assert) {
   var feed = create().createFeed()
 
