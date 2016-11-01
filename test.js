@@ -242,6 +242,71 @@ test('catchup after being offline', function (assert) {
   }
 })
 
+test('Large index', function (assert) {
+  var feed = create().createFeed()
+
+  feed.append(largeArray(0, 1026), _ => assert.comment('Batch ' + 1))
+  feed.append(largeArray(1001, 2000), _ => assert.comment('Batch ' + 2))
+  feed.append(largeArray(2001, 3000), _ => assert.comment('Batch ' + 3))
+  feed.append(largeArray(3001, 4000), _ => assert.comment('Batch ' + 4))
+  feed.append(largeArray(4001, 5000), _ => assert.comment('Batch ' + 5))
+  feed.append(largeArray(5001, 6000), _ => assert.comment('Batch ' + 6))
+  feed.append(largeArray(6001, 7000), _ => assert.comment('Batch ' + 7))
+  feed.append(largeArray(7001, 8000), _ => assert.comment('Batch ' + 8))
+  feed.append(largeArray(8001, 9000), _ => assert.comment('Batch ' + 9))
+  feed.append(largeArray(9001, 10000), _ => assert.comment('Batch ' + 10))
+  feed.close(function (err) {
+    assert.error(err)
+
+    var sharedCore = create()
+    var db = memdb()
+    var remote = sharedCore.createFeed(feed.key, {sparse: true})
+
+    replicate(feed, remote)
+
+    for (var i = 1; i < 1000; i += 256) {
+      remote.get(i - 1, function () {})
+      remote.get(i, function () {})
+      remote.get(i + 1, function () {})
+    }
+
+    remote.on('download-finished', function () {
+      remote.close(assert.error)
+    })
+
+    index({
+      feed: remote,
+      db: db
+    }, onentryExpected, function (err) {
+      assert.error(err)
+
+      var pickup = sharedCore.createFeed(remote.key, {sparse: true})
+
+      index({
+        feed: pickup,
+        db: db
+      }, onentryActual, assertDone)
+    })
+  })
+
+  var recv = new Set()
+  function onentryExpected (entry, next) {
+    assert.notOk(recv.has(entry.toString()))
+    recv.add(entry.toString())
+    next()
+  }
+
+  function onentryActual (entry, next) {
+    assert.false(recv.delete(entry.toString()))
+    next()
+  }
+
+  function assertDone (err) {
+    assert.error(err)
+    assert.end()
+  }
+})
+
 function create (opts) {
   return hypercore(memdb({keyEncoding: 'json'}), opts)
 }
@@ -249,4 +314,17 @@ function create (opts) {
 function replicate (a, b, optsA, optsB) {
   var stream = a.replicate(optsA)
   stream.pipe(b.replicate(optsB)).pipe(stream)
+}
+
+function largeArray (start, finish) {
+  var arr = Array(finish - start)
+  for (var i = 0; start <= finish; start++, i++) {
+    arr[i] = start.toString()
+  }
+
+  return arr
+}
+
+function sortNumeric (a, b) {
+  return a - b
 }
