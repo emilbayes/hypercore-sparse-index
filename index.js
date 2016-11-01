@@ -36,18 +36,36 @@ module.exports = function (opts, onentry, ondone) {
       sieve.set(node.block, true)
       persist(node.block, function (err) {
         if (err) return next(err)
-
+        pending--
+        if (closed && flushed && pending === 0) queue.end()
         next()
       })
     })
   })
 
-  queue.on('error', ondone)
-  queue.on('finish', ondone)
+  var finished = false
+  var errored = false
+  var closed = false
+  var flushed = false
+  var pending = 0
+
+  queue.on('error', function (err) {
+    errored = true
+    return ondone(err)
+  })
+
+  queue.on('finish', function () {
+    finished = true
+    return ondone()
+  })
 
   // Might close before we have gotten our previous state
   feed.on('close', function () {
-    queue.end()
+    closed = true
+    feed.flush(function (err) {
+      if (err) return queue.destroy(err)
+      flushed = true
+    })
   })
 
   // First find previous state
@@ -85,11 +103,10 @@ module.exports = function (opts, onentry, ondone) {
       valueEncoding: 'binary'
     })
     .on('data', function (data) {
-      sieve.setBuffer(data.key.slice(BITFIELD_BUFFERS.length) * bitfield.BITFIELD_LENGTH, data.value)
+      var index = data.key.slice(BITFIELD_BUFFERS.length) * bitfield.BITFIELD_LENGTH
+      sieve.setBuffer(index, data.value)
     })
-    .on('error', function (err) {
-      return cb(err)
-    })
+    .on('error', cb.bind(this))
     .on('end', function () {
       db.get(HEAD_OFFSET, function (err, offset) {
         if (err && !err.notFound) return cb(err)
@@ -123,7 +140,8 @@ module.exports = function (opts, onentry, ondone) {
   function enqueue (block) {
     return function (err, data) {
       if (err) return queue.destroy(err)
-
+      if (finished || errored) return
+      pending++
       queue.write({block: block, data: data})
     }
   }
